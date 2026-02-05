@@ -12,6 +12,9 @@
                 <a href="{{ route('home') }}" class="btn btn-sm btn-secondary">
                     <i class="fas fa-home"></i> Home
                 </a>
+                <a href="{{ route('support.tickets.create') }}" class="btn btn-sm btn-success">
+                    <i class="fas fa-plus-circle"></i> Create Ticket
+                </a>
                 <a href="{{ route('support.tickets.my-tickets') }}" class="btn btn-sm btn-primary">
                     <i class="fas fa-ticket-alt"></i> My Tickets
                 </a>
@@ -35,23 +38,34 @@
             <div class="col-md-12">
                 <div class="card bg-primary text-white">
                     <div class="card-body">
-                        <h5 class="mb-3 text-light"><i class="fas fa-user-circle"></i> My Performance</h5>
+                        <h5 class="mb-3 text-light"><i class="fas fa-user-circle"></i> My Performance
+                            <span class="float-end" style="font-size: 0.75rem; opacity: 0.8;">Last updated: <span
+                                    id="statsLastUpdated">now</span></span>
+                        </h5>
                         <div class="row">
-                            <div class="col-md-3 text-center">
+                            <div class="col-md-2 text-center">
                                 <h2 id="solveCount">{{ $stats['solve_count'] }}</h2>
                                 <p class="mb-0">Tickets Solved</p>
                             </div>
-                            <div class="col-md-3 text-center">
+                            <div class="col-md-2 text-center">
                                 <h2 id="reviewCount">{{ $stats['review_count'] }}</h2>
                                 <p class="mb-0">Reviews Received</p>
                             </div>
-                            <div class="col-md-3 text-center">
+                            <div class="col-md-2 text-center">
                                 <h2 class="text-success" id="satisfiedCount">{{ $stats['satisfied_count'] }}</h2>
                                 <p class="mb-0">Satisfied</p>
                             </div>
-                            <div class="col-md-3 text-center">
+                            <div class="col-md-2 text-center">
                                 <h2 class="text-danger" id="dissatisfiedCount">{{ $stats['dissatisfied_count'] }}</h2>
                                 <p class="mb-0">Dissatisfied</p>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <h2 class="text-warning" id="forwardCount">{{ $stats['forward_count'] }}</h2>
+                                <p class="mb-0">Forwarded</p>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <h2 class="text-info" id="forwardPercentage">{{ $stats['forward_percentage'] }}%</h2>
+                                <p class="mb-0">Forward Rate</p>
                             </div>
                         </div>
                     </div>
@@ -74,6 +88,7 @@
                                     <th>Client</th>
                                     <th>Subject</th>
                                     <th>Status</th>
+                                    <th>Queue Position</th>
                                     <th>Created</th>
                                     <th>Solving Time</th>
                                     <th>Closed</th>
@@ -177,7 +192,8 @@
                                                         </div>
                                                         <div class="form-group">
                                                             <label>Remarks</label>
-                                                            <textarea name="remarks" class="form-control" rows="3" placeholder="Why are you forwarding this ticket?" required></textarea>
+                                                            <textarea name="remarks" class="form-control" rows="3" placeholder="Why are you forwarding this ticket?"
+                                                                required></textarea>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -194,7 +210,7 @@
                                     </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="9" class="text-center">No ERP support tickets</td>
+                                            <td colspan="10" class="text-center">No ERP support tickets</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -340,7 +356,7 @@
                                         </div>
                                         @empty
                                             <tr>
-                                                <td colspan="9" class="text-center">No IT support tickets</td>
+                                                <td colspan="10" class="text-center">No IT support tickets</td>
                                             </tr>
                                         @endforelse
                                     </tbody>
@@ -486,7 +502,7 @@
                                             </div>
                                             @empty
                                                 <tr>
-                                                    <td colspan="9" class="text-center">No programmer support tickets</td>
+                                                    <td colspan="10" class="text-center">No Programmer support tickets</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
@@ -524,21 +540,19 @@
                             function renderTicketRows(tickets, tableBodyId) {
                                 let html = '';
                                 if (tickets.length === 0) {
-                                    html = '<tr><td colspan="9" class="text-center">No tickets available</td></tr>';
+                                    html = '<tr><td colspan="10" class="text-center">No tickets available</td></tr>';
                                 } else {
                                     tickets.forEach(ticket => {
                                         let assignedName = ticket.support_user ? ticket.support_user.name :
                                             '<span class="text-muted">Unassigned</span>';
                                         let actionBtn = '';
                                         if (ticket.status === 'Pending') {
-                                            actionBtn = '<form action="' + "{{ route('support.tickets.receive', '') }}" +
-                                                '/' + ticket.id +
-                                                '" method="POST" class="d-inline"><input type="hidden" name="_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-sm btn-success"><i class="fas fa-hand-paper"></i> Receive</button></form>';
+                                            actionBtn = '<form action="{{ url('support-tickets') }}/' + ticket.id +
+                                                '/receive" method="POST" class="d-inline"><input type="hidden" name="_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-sm btn-success"><i class="fas fa-hand-paper"></i> Receive</button></form>';
                                         } else if (ticket.status !== 'Complete' && ticket.support_user && ticket
                                             .support_user.id == CURRENT_USER_ID) {
                                             // For AJAX-updated rows we link to the ticket show page where forward/complete actions are available
-                                            actionBtn = '<a href="' + "{{ route('support.tickets.show', '') }}" + '/' +
-                                                ticket.id +
+                                            actionBtn = '<a href="{{ url('support-tickets') }}/' + ticket.id +
                                                 '" class="btn btn-sm btn-warning"><i class="fas fa-share"></i> Forward</a>';
                                         }
 
@@ -551,11 +565,34 @@
                                                 minute: '2-digit'
                                             }) : '-';
 
+                                        // Calculate queue position for pending tickets
+                                        let queueHtml = '-';
+                                        if (ticket.status === 'Pending') {
+                                            // Count how many pending tickets of the same support type were created before this one
+                                            let queuePosition = tickets.filter(t =>
+                                                t.status === 'Pending' &&
+                                                t.support_type === ticket.support_type &&
+                                                new Date(t.created_at) < new Date(ticket.created_at)
+                                            ).length + 1;
+
+                                            let queueTotal = tickets.filter(t =>
+                                                t.status === 'Pending' &&
+                                                t.support_type === ticket.support_type
+                                            ).length;
+
+                                            queueHtml =
+                                                '<div class="text-center"><span class="badge bg-primary" style="font-size: 1.1em;"><i class="fas fa-list-ol"></i> #' +
+                                                queuePosition + '</span><br><small class="text-muted">of ' + queueTotal +
+                                                '</small><br><small class="text-info">' + ticket.support_type +
+                                                '</small></div>';
+                                        }
+
                                         html += `<tr>
                                     <td><strong>${ticket.ticket_number}</strong></td>
                                     <td>${ticket.client.name}</td>
                                     <td>${ticket.subject.substring(0, 40)}</td>
                                     <td>${getStatusBadge(ticket.status, ticket.support_user)}</td>
+                                    <td>${queueHtml}</td>
                                     <td>${new Date(ticket.created_at).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: '2-digit'})}</td>
                                         <td>${ticket.solving_time ? new Date(ticket.solving_time).toLocaleString('en-US', {year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'}) : '-'}</td>
                                     <td>${completedAtStr}</td>
@@ -583,6 +620,9 @@
                                         $('#reviewCount').text(data.review_count);
                                         $('#satisfiedCount').text(data.satisfied_count);
                                         $('#dissatisfiedCount').text(data.dissatisfied_count);
+                                        $('#forwardCount').text(data.forward_count);
+                                        $('#forwardPercentage').text(data.forward_percentage + '%');
+                                        updateStatsLastUpdated();
                                     },
                                     error: function(xhr, status, error) {
                                         console.log('Error refreshing stats:', error);
@@ -603,6 +643,12 @@
                                         console.log('Error refreshing tickets:', error);
                                     }
                                 });
+                            }
+
+                            function updateStatsLastUpdated() {
+                                const now = new Date();
+                                const timeString = now.toLocaleTimeString();
+                                $('#statsLastUpdated').text(timeString);
                             }
 
                             // Refresh every 10 seconds

@@ -135,6 +135,24 @@
                                     @endswitch
                                 </td>
                             </tr>
+                            @if ($ticket->status === 'Pending' && isset($ticket->queue_position))
+                                <tr>
+                                    <th>Queue Position</th>
+                                    <td>
+                                        <div class="alert alert-info mb-0 py-2">
+                                            <i class="fas fa-list-ol"></i>
+                                            <strong>Position #{{ $ticket->queue_position }}</strong> of
+                                            {{ $ticket->queue_total }}
+                                            in <strong>{{ $ticket->support_type }}</strong> queue
+                                            <br>
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle"></i> Tickets are processed in
+                                                First-In-First-Out (FIFO) order
+                                            </small>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                             <tr>
                                 <th>Created At</th>
                                 <td>{{ $ticket->created_at->format('F d, Y h:i A') }}</td>
@@ -313,6 +331,37 @@
                         @endif
                     </div>
                 </div>
+
+                <!-- Support Feedback Section -->
+                @if ($ticket->feedbacks && $ticket->feedbacks->count() > 0)
+                    <div class="card mt-3">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-comments"></i> Support Team Feedback</h6>
+                        </div>
+                        <div class="card-body">
+                            @foreach ($ticket->feedbacks as $feedback)
+                                <div class="feedback-item mb-3 p-3 border rounded">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <strong class="text-primary">
+                                                <i class="fas fa-user-circle"></i> {{ $feedback->supportUser->name }}
+                                            </strong>
+                                            <span class="text-muted small">
+                                                ({{ $feedback->supportUser->role->name }})
+                                            </span>
+                                        </div>
+                                        <small class="text-muted">
+                                            {{ $feedback->created_at->format('M d, Y h:i A') }}
+                                        </small>
+                                    </div>
+                                    <div class="feedback-content">
+                                        <p class="mb-0">{{ $feedback->feedback }}</p>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 @if ($ticket->reviewHistories && $ticket->reviewHistories->count() > 0)
                     <div class="card mt-3">

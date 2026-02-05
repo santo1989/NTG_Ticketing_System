@@ -22,6 +22,26 @@ class ClientTicketController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Calculate queue position for pending tickets (FIFO - based on created_at)
+        $tickets = $tickets->map(function ($ticket) {
+            if ($ticket->status === 'Pending') {
+                // Get queue position by support type (FIFO)
+                $ticket->queue_position = Ticket::where('support_type', $ticket->support_type)
+                    ->where('status', 'Pending')
+                    ->where('created_at', '<', $ticket->created_at)
+                    ->count() + 1; // +1 because position starts from 1
+
+                // Get total queue size for this support type
+                $ticket->queue_total = Ticket::where('support_type', $ticket->support_type)
+                    ->where('status', 'Pending')
+                    ->count();
+            } else {
+                $ticket->queue_position = null;
+                $ticket->queue_total = null;
+            }
+            return $ticket;
+        });
+
         $stats = [
             'total' => $tickets->count(),
             'pending' => $tickets->where('status', 'Pending')->count(),
@@ -152,10 +172,23 @@ class ClientTicketController extends Controller
             'supportUser',
             'review',
             'reviewHistories',
+            'feedbacks.supportUser',
             'activities' => function ($query) {
                 $query->with('user');
             },
         ]);
+
+        // Calculate queue position if ticket is pending
+        if ($ticket->status === 'Pending') {
+            $ticket->queue_position = Ticket::where('support_type', $ticket->support_type)
+                ->where('status', 'Pending')
+                ->where('created_at', '<', $ticket->created_at)
+                ->count() + 1;
+
+            $ticket->queue_total = Ticket::where('support_type', $ticket->support_type)
+                ->where('status', 'Pending')
+                ->count();
+        }
 
         return view('backend.tickets.client.show', compact('ticket'));
     }
@@ -375,6 +408,37 @@ class ClientTicketController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Calculate queue position for pending tickets
+        $tickets = $tickets->map(function ($ticket) {
+            if ($ticket->status === 'Pending') {
+                $ticket->queue_position = Ticket::where('support_type', $ticket->support_type)
+                    ->where('status', 'Pending')
+                    ->where('created_at', '<', $ticket->created_at)
+                    ->count() + 1;
+
+                $ticket->queue_total = Ticket::where('support_type', $ticket->support_type)
+                    ->where('status', 'Pending')
+                    ->count();
+            }
+            return $ticket;
+        });
+
         return response()->json(['tickets' => $tickets]);
+    }
+
+    public function getDashboardStatsAjax()
+    {
+        $user = Auth::user();
+        $tickets = Ticket::where('client_id', $user->id)->get();
+
+        $stats = [
+            'total' => $tickets->count(),
+            'pending' => $tickets->where('status', 'Pending')->count(),
+            'received' => $tickets->where('status', 'Receive')->count(),
+            'in_progress' => $tickets->where('status', 'Send to Logic')->count(),
+            'completed' => $tickets->where('status', 'Complete')->count(),
+        ];
+
+        return response()->json($stats);
     }
 }

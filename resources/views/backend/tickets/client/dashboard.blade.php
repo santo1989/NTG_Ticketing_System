@@ -81,6 +81,11 @@
             </div>
         </div>
 
+        <!-- Last Updated Time -->
+        <div class="text-center mb-3">
+            <small class="text-muted">Last updated: <span id="lastUpdated">now</span></small>
+        </div>
+
         <!-- Tickets Table -->
         <div class="card">
             <div class="card-header">
@@ -95,6 +100,7 @@
                                 <th>Subject</th>
                                 <th>Support Type</th>
                                 <th>Status</th>
+                                <th>Queue Position</th>
                                 <th>Created</th>
                                 <th>Solving Time</th>
                                 <th>Closed</th>
@@ -131,6 +137,21 @@
                                                 <span class="badge bg-success">Complete</span>
                                             @break
                                         @endswitch
+                                    </td>
+                                    <td>
+                                        @if ($ticket->status === 'Pending' && $ticket->queue_position)
+                                            <div class="text-center">
+                                                <span class="badge bg-primary" style="font-size: 1.1em;">
+                                                    <i class="fas fa-list-ol"></i> #{{ $ticket->queue_position }}
+                                                </span>
+                                                <br>
+                                                <small class="text-muted">of {{ $ticket->queue_total }}</small>
+                                                <br>
+                                                <small class="text-info">{{ $ticket->support_type }} Queue</small>
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
                                     </td>
                                     <td>{{ $ticket->created_at->format('M d, Y') }}</td>
                                     <td>
@@ -176,7 +197,8 @@
                                         @endif
                                         @if ($ticket->isCompleted() && !$ticket->review)
                                             <button type="button" class="btn btn-sm btn-success"
-                                                onclick="submitSatisfiedReview({{ $ticket->id }})" title="Satisfied">
+                                                onclick="submitSatisfiedReview({{ $ticket->id }})"
+                                                title="Satisfied">
                                                 <i class="fas fa-thumbs-up"></i>
                                             </button>
                                             <button type="button" class="btn btn-sm btn-danger"
@@ -593,6 +615,136 @@
                         $('#revise_reason_group').hide();
                     }
                 });
+
+                // Auto-refresh functionality for dashboard
+                function updateDashboardStats() {
+                    $.ajax({
+                        url: '{{ route('client.tickets.ajax.stats') }}',
+                        type: 'GET',
+                        dataType: 'json',
+                        success: function(data) {
+                            $('#totalTickets').text(data.total);
+                            $('#pendingTickets').text(data.pending);
+                            $('#receivedTickets').text(data.received);
+                            $('#inProgressTickets').text(data.in_progress);
+                            $('#completedTickets').text(data.completed);
+                            updateLastUpdatedTime();
+                        },
+                        error: function(xhr) {
+                            console.log('Error updating stats:', xhr);
+                        }
+                    });
+                }
+
+                function updateTicketsTable() {
+                    $.ajax({
+                        url: '{{ route('client.tickets.ajax.tickets') }}',
+                        type: 'GET',
+                        dataType: 'json',
+                        success: function(response) {
+                            const tbody = $('#ticketsTable tbody');
+                            if (!response.tickets || response.tickets.length === 0) {
+                                tbody.html(
+                                    '<tr><td colspan="10" class="text-center text-muted">No tickets found</td></tr>'
+                                );
+                                return;
+                            }
+
+                            let html = '';
+                            response.tickets.forEach(function(ticket) {
+                                let statusBadge = '';
+                                switch (ticket.status) {
+                                    case 'Pending':
+                                        statusBadge =
+                                            '<span class="badge bg-warning text-dark">Pending</span>';
+                                        break;
+                                    case 'Receive':
+                                        statusBadge = '<span class="badge bg-info">Receive by ' + (
+                                            ticket.support_user ? ticket.support_user.name :
+                                            'Unknown') + '</span>';
+                                        break;
+                                    case 'Revise':
+                                        statusBadge =
+                                            '<span class="badge bg-warning text-dark">Revise</span>';
+                                        break;
+                                    case 'Send to Logic':
+                                        statusBadge =
+                                            '<span class="badge bg-secondary">Send to Logic</span>';
+                                        break;
+                                    case 'Complete':
+                                        statusBadge =
+                                            '<span class="badge bg-success">Complete</span>';
+                                        break;
+                                }
+
+                                let queueHtml = '-';
+                                if (ticket.status === 'Pending' && ticket.queue_position) {
+                                    queueHtml =
+                                        '<div class="text-center"><span class="badge bg-primary" style="font-size: 1.1em;"><i class="fas fa-list-ol"></i> #' +
+                                        ticket.queue_position +
+                                        '</span><br><small class="text-muted">of ' + ticket
+                                        .queue_total + '</small><br><small class="text-info">' +
+                                        ticket.support_type + ' Queue</small></div>';
+                                }
+
+                                let createdDate = new Date(ticket.created_at).toLocaleDateString();
+                                let closedDate = ticket.completed_at ? new Date(ticket.completed_at)
+                                    .toLocaleDateString() : '-';
+                                let solvingTime = ticket.completed_at ? calculateDaysDifference(
+                                    ticket.created_at, ticket.completed_at) + ' days' : '-';
+
+                                html += '<tr>' +
+                                    '<td><strong>' + ticket.ticket_number + '</strong></td>' +
+                                    '<td>' + (ticket.subject.length > 40 ? ticket.subject.substring(
+                                        0, 40) + '...' : ticket.subject) + '</td>' +
+                                    '<td><span class="badge bg-info">' + ticket.support_type +
+                                    '</span></td>' +
+                                    '<td>' + statusBadge + '</td>' +
+                                    '<td>' + queueHtml + '</td>' +
+                                    '<td>' + createdDate + '</td>' +
+                                    '<td>' + solvingTime + '</td>' +
+                                    '<td>' + closedDate + '</td>' +
+                                    '<td>' + (ticket.support_user ? ticket.support_user.name :
+                                        '-') + '</td>' +
+                                    '<td><a href="{{ route('client.tickets.show', '') }}/' + ticket
+                                    .id +
+                                    '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a></td>' +
+                                    '</tr>';
+                            });
+
+                            tbody.html(html);
+                            updateLastUpdatedTime();
+                        },
+                        error: function(xhr) {
+                            console.log('Error updating tickets:', xhr);
+                        }
+                    });
+                }
+
+                function calculateDaysDifference(startDate, endDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    const diffTime = Math.abs(end - start);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays;
+                }
+
+                function updateLastUpdatedTime() {
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString();
+                    $('#lastUpdated').text(timeString);
+                }
+
+                // Set up auto-refresh intervals
+                // Update stats every 10 seconds
+                setInterval(updateDashboardStats, 10000);
+
+                // Update tickets table every 10 seconds
+                setInterval(updateTicketsTable, 10000);
+
+                // Optional: Initial update on page load (comment out if you prefer to use server-rendered data)
+                // updateDashboardStats();
+                // updateTicketsTable();
             });
         </script>
 

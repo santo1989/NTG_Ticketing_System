@@ -25,6 +25,13 @@
     <div class="container-fluid">
         <!-- Overall Statistics -->
         <div class="row mb-4">
+            <div class="col-md-10"></div>
+            <div class="col-md-2">
+                <small class="text-muted d-block text-end">Last updated: <span id="adminLastUpdated">now</span></small>
+            </div>
+        </div>
+
+        <div class="row mb-4">
             <div class="col-md-2">
                 <div class="card text-center bg-primary text-white">
                     <div class="card-body">
@@ -106,7 +113,7 @@
 
         <!-- Review Statistics -->
         <div class="row mb-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
                         <h3 id="totalReviewsAdmin">{{ $totalReviews }}</h3>
@@ -114,7 +121,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card bg-success text-white">
                     <div class="card-body text-center">
                         <h3 id="satisfiedCountAdmin">{{ $satisfiedCount }}</h3>
@@ -127,7 +134,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card bg-danger text-white">
                     <div class="card-body text-center">
                         <h3 id="dissatisfiedCountAdmin">{{ $dissatisfiedCount }}</h3>
@@ -137,6 +144,15 @@
                                 ({{ round(($dissatisfiedCount / $totalReviews) * 100, 1) }}%)
                             @endif
                         </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body text-center">
+                        <h3 id="totalForwardsAdmin">{{ $totalForwards }}</h3>
+                        <p class="mb-0">Total Forwarded</p>
+                        <small id="forwardPercentAdmin">({{ $forwardPercentage }}%)</small>
                     </div>
                 </div>
             </div>
@@ -156,6 +172,8 @@
                                     <th>#</th>
                                     <th>Support User</th>
                                     <th>Completed</th>
+                                    <th>Forwarded</th>
+                                    <th>Forward %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -164,10 +182,13 @@
                                         <td>{{ $index + 1 }}</td>
                                         <td>{{ $user->name }}</td>
                                         <td><span class="badge badge-success">{{ $user->completed_count }}</span></td>
+                                        <td><span class="badge badge-warning">{{ $user->forward_count }}</span></td>
+                                        <td><span class="badge badge-info">{{ $user->forward_percentage }}%</span>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="3" class="text-center">No data available</td>
+                                        <td colspan="5" class="text-center">No data available</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -268,11 +289,19 @@
                                 $('#satisfiedPercentAdmin').text('(' + satisfiedPercent + '%)');
                                 $('#dissatisfiedPercentAdmin').text('(' + dissatisfiedPercent + '%)');
                             }
+
+                            updateAdminLastUpdated();
                         },
                         error: function(xhr, status, error) {
                             console.log('Error refreshing admin dashboard:', error);
                         }
                     });
+                }
+
+                function updateAdminLastUpdated() {
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString();
+                    $('#adminLastUpdated').text(timeString);
                 }
 
                 // Refresh every 10 seconds

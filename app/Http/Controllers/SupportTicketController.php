@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Models\TicketActivity;
+use App\Models\TicketFeedback;
 use App\Mail\TicketCompletedMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -315,11 +316,26 @@ class SupportTicketController extends Controller
             })
             ->count();
 
+        // Forward count - tickets that were forwarded by this user
+        $forwardCount = TicketActivity::where('user_id', $userId)
+            ->where('action', 'forwarded')
+            ->count();
+
+        // Total tickets handled (received) by this user
+        $totalTicketsHandled = Ticket::where('support_user_id', $userId)->count();
+
+        // Forward percentage
+        $forwardPercentage = $totalTicketsHandled > 0
+            ? round(($forwardCount / $totalTicketsHandled) * 100, 2)
+            : 0;
+
         return [
             'solve_count' => $solveCount,
             'review_count' => $reviewCount,
             'satisfied_count' => $satisfiedCount,
             'dissatisfied_count' => $dissatisfiedCount,
+            'forward_count' => $forwardCount,
+            'forward_percentage' => $forwardPercentage,
         ];
     }
 
@@ -406,5 +422,104 @@ class SupportTicketController extends Controller
             ->get();
 
         return response()->json($tickets);
+    }
+
+    public function storeFeedback(Request $request, Ticket $ticket)
+    {
+        // Ensure only assigned support user can provide feedback
+        if ((int) $ticket->support_user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        // Only allow feedback when status is "Send to Logic"
+        if ($ticket->status !== 'Send to Logic') {
+            return redirect()->back()
+                ->with('error', 'Feedback can only be provided when ticket status is "Send to Logic".');
+        }
+
+        $validated = $request->validate([
+            'feedback' => 'required|string|max:5000',
+        ]);
+
+        TicketFeedback::create([
+            'ticket_id' => $ticket->id,
+            'support_user_id' => Auth::id(),
+            'feedback' => $validated['feedback'],
+        ]);
+
+        // Log activity
+        TicketActivity::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'action' => 'feedback_added',
+            'description' => 'Added feedback: ' . substr($validated['feedback'], 0, 100) . (strlen($validated['feedback']) > 100 ? '...' : ''),
+        ]);
+
+        return redirect()->back()
+            ->with('success', 'Feedback added successfully!');
+    }
+
+    public function create()
+    {
+        $users = User::where('role_id', 2)->orderBy('name')->get(); // General role users
+        $companies = \App\Models\Company::orderBy('name')->get();
+        $departments = \App\Models\Department::orderBy('name')->get();
+        $designations = \App\Models\Designation::orderBy('name')->get();
+
+        return view('backend.tickets.support.create', compact('users', 'companies', 'departments', 'designations'));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'client_id' => 'required|exists:users,id',
+            'support_type' => 'required|in:ERP Support,IT Support,Programmer Support',
+            'subject' => 'required|string|max:255',
+            'description' => 'required|string',
+            'attachments.*' => 'nullable|file|max:10240', // 10MB max per file
+        ]);
+
+        // Generate ticket number
+        $lastTicket = Ticket::orderBy('id', 'desc')->first();
+        $ticketNumber = 'TKT-' . str_pad(($lastTicket ? $lastTicket->id + 1 : 1), 6, '0', STR_PAD_LEFT);
+
+        // Create ticket with selected client as creator
+        $ticket = Ticket::create([
+            'ticket_number' => $ticketNumber,
+            'client_id' => $validated['client_id'],
+            'support_type' => $validated['support_type'],
+            'subject' => $validated['subject'],
+            'description' => $validated['description'],
+            'status' => 'Receive', // Auto-receive
+            'support_user_id' => Auth::id(), // Auto-assign to current support user
+            'received_at' => now(),
+        ]);
+
+        // Handle file attachments
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $file->move(public_path('attachments/tickets'), $filename);
+
+                \App\Models\TicketAttachment::create([
+                    'ticket_id' => $ticket->id,
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => 'attachments/tickets/' . $filename,
+                    'uploaded_by' => Auth::id(),
+                ]);
+            }
+        }
+
+        // Log activity
+        TicketActivity::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'action' => 'created_and_received',
+            'new_status' => 'Receive',
+            'description' => 'Ticket created on behalf of ' . User::find($validated['client_id'])->name . ' and auto-received by ' . Auth::user()->name,
+        ]);
+
+        return redirect()->route('support.tickets.show', $ticket)
+            ->with('success', 'Ticket created and auto-received successfully!');
     }
 }

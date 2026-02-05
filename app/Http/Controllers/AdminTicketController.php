@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketReview;
+use App\Models\TicketActivity;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,13 +31,36 @@ class AdminTicketController extends Controller
         $satisfiedCount = TicketReview::where('rating', 'Satisfied')->count();
         $dissatisfiedCount = TicketReview::where('rating', 'Dissatisfied')->count();
 
+        // Forward statistics
+        $totalForwards = TicketActivity::where('action', 'forwarded')->count();
+        $totalTicketsWithSupport = Ticket::whereNotNull('support_user_id')->count();
+        $forwardPercentage = $totalTicketsWithSupport > 0
+            ? round(($totalForwards / $totalTicketsWithSupport) * 100, 2)
+            : 0;
+
         // Top support users
-        $topSupportUsers = User::withCount(['supportTickets as completed_count' => function ($query) {
-            $query->where('status', 'Complete');
-        }])
+        $topSupportUsers = User::withCount([
+            'supportTickets as completed_count' => function ($query) {
+                $query->where('status', 'Complete');
+            },
+            'supportTickets as total_tickets_count'
+        ])
             ->get()
             ->filter(function ($user) {
                 return $user->completed_count > 0;
+            })
+            ->map(function ($user) {
+                // Get forward count for this user
+                $user->forward_count = TicketActivity::where('user_id', $user->id)
+                    ->where('action', 'forwarded')
+                    ->count();
+
+                // Calculate forward percentage
+                $user->forward_percentage = $user->total_tickets_count > 0
+                    ? round(($user->forward_count / $user->total_tickets_count) * 100, 2)
+                    : 0;
+
+                return $user;
             })
             ->sortByDesc('completed_count')
             ->take(5)
@@ -60,6 +84,8 @@ class AdminTicketController extends Controller
             'totalReviews',
             'satisfiedCount',
             'dissatisfiedCount',
+            'totalForwards',
+            'forwardPercentage',
             'topSupportUsers',
             'recentTickets'
         ));

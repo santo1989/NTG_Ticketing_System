@@ -150,11 +150,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/my-tickets', [SupportTicketController::class, 'myTickets'])->name('my-tickets');
         Route::get('/reports', [SupportTicketController::class, 'reports'])->name('reports');
         Route::get('/reports/download', [SupportTicketController::class, 'downloadReport'])->name('reports.download');
+        Route::get('/create', [SupportTicketController::class, 'create'])->name('create');
+        Route::post('/store', [SupportTicketController::class, 'store'])->name('store');
         Route::get('/{ticket}', [SupportTicketController::class, 'show'])->name('show');
         Route::post('/{ticket}/receive', [SupportTicketController::class, 'receive'])->name('receive');
         Route::post('/{ticket}/forward', [SupportTicketController::class, 'forward'])->name('forward');
         Route::post('/{ticket}/update-status', [SupportTicketController::class, 'updateStatus'])->name('update-status');
         Route::post('/{ticket}/complete', [SupportTicketController::class, 'complete'])->name('complete');
+        Route::post('/{ticket}/feedback', [SupportTicketController::class, 'storeFeedback'])->name('feedback.store');
         // AJAX endpoints
         Route::get('/ajax/stats', [SupportTicketController::class, 'getStatsAjax'])->name('ajax.stats');
         Route::get('/ajax/dashboard-tickets', [SupportTicketController::class, 'getDashboardTickets'])->name('ajax.dashboard-tickets');

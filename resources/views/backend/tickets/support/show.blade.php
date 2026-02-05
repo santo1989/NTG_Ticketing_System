@@ -304,6 +304,65 @@
                     @endif
                 @endif
 
+                <!-- Feedback Section (for Send to Logic status) -->
+                @if ($ticket->status === 'Send to Logic' && $ticket->support_user_id == Auth::id())
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-comments"></i> Add Feedback</h6>
+                        </div>
+                        <div class="card-body">
+                            <form action="{{ route('support.tickets.feedback.store', $ticket) }}" method="POST">
+                                @csrf
+                                <div class="form-group">
+                                    <label for="feedback">Feedback to Client</label>
+                                    <textarea name="feedback" id="feedback" class="form-control" rows="4"
+                                        placeholder="Provide feedback to the client about the ticket progress..." required></textarea>
+                                    <small class="form-text text-muted">
+                                        This feedback will be visible to the client in their dashboard.
+                                    </small>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i> Send Feedback
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                @endif
+
+                <!-- Feedback History -->
+                @if ($ticket->feedbacks && $ticket->feedbacks->count() > 0)
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-header bg-gradient-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-comment-dots"></i> Feedback History</h6>
+                        </div>
+                        <div class="card-body">
+                            @foreach ($ticket->feedbacks as $feedback)
+                                <div class="feedback-item mb-3 p-3 border rounded">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <strong class="text-primary">
+                                                <i class="fas fa-user-circle"></i> {{ $feedback->supportUser->name }}
+                                            </strong>
+                                            <span class="text-muted small">
+                                                ({{ $feedback->supportUser->role->name }})
+                                            </span>
+                                        </div>
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock"></i> {{ $feedback->created_at->diffForHumans() }}
+                                            <br>
+                                            <span
+                                                class="text-muted small">{{ $feedback->created_at->format('M d, Y h:i A') }}</span>
+                                        </small>
+                                    </div>
+                                    <div class="feedback-content">
+                                        <p class="mb-0">{{ $feedback->feedback }}</p>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 <!-- Activity Timeline -->
                 @if ($ticket->activities && $ticket->activities->count() > 0)
                     <div class="card shadow-sm">

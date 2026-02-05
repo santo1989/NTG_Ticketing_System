@@ -97,6 +97,11 @@ class Ticket extends Model
         return $this->hasMany(TicketActivity::class)->orderBy('created_at', 'desc');
     }
 
+    public function feedbacks()
+    {
+        return $this->hasMany(TicketFeedback::class)->orderBy('created_at', 'desc');
+    }
+
     // Scopes
     public function scopePending($query)
     {
